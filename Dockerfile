@@ -1,22 +1,22 @@
 FROM ruby:2.6.5-slim-stretch
-MAINTAINER Andy Duss <github@mindovermiles262>
-
-ENV RAILS_ENV=docker_development
+LABEL Andy Duss <github@mindovermiles262>
+ARG optimize_for_raspberry_pi
 
 # Update System
 RUN apt-get update && \
   apt-get upgrade -y && \
-  apt-get install -y git build-essential libsqlite3-dev libmariadb-dev vim
+  apt-get install -y git build-essential libmariadb-dev
 
-# Copy and install Gems
-COPY ./Gemfile      /syncing-server/Gemfile
-COPY ./Gemfile.lock /syncing-server/Gemfile.lock
+# Copy the syncing-server files
+COPY . /syncing-server
 WORKDIR /syncing-server
+
+# On Raspberry Pi, we should use bcrypt 3.1.12 instead of 3.1.13 
+# within the Gemfile.lock file
+RUN if [ "$optimize_for_raspberry_pi" = true ] ; then sed -i 's/bcrypt (3.1.13)/bcrypt (3.1.12)/g' Gemfile.lock; fi
+
+# Install gems
 RUN gem install bundler && bundle install
 
-# Copy the remaining files
-COPY . /syncing-server
-
 # Migrate the DB and start development server
-RUN rails db:migrate
-CMD ["rails", "server", "-b", "0.0.0.0"]
+CMD "bundle exec rails db:migrate && bundle exec rails server -b 0.0.0.0"
