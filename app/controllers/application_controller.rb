@@ -1,12 +1,18 @@
-class ApplicationController < ActionController::Base
-  protect_from_forgery with: :null_session
-  after_action :set_csrf_cookie
-  respond_to :html, :json
-  layout :false
+class ApplicationController < ActionController::API
+  respond_to :html, only: :home
 
-  protected
+  def home
+    render html: File.read('app/views/application/home.html').html_safe
+  end
 
-  def set_csrf_cookie
-    cookies['XSRF-TOKEN'] = form_authenticity_token if protect_against_forgery?
+  private
+
+  def request_ip_address
+    ip_address = request.remote_ip
+    ip_address unless ip_address == '::1'
+  end
+
+  def request_user_agent
+    request.user_agent
   end
 end

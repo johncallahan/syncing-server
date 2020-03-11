@@ -1,6 +1,6 @@
 require 'rails_helper'
 
-RSpec.describe Api::ItemsController, type: :controller do
+RSpec.describe Api::ItemController, type: :controller do
   test_password = '123456'
 
   let(:test_user) do
@@ -47,7 +47,7 @@ RSpec.describe Api::ItemsController, type: :controller do
             @controller = Api::AuthController.new
             post :sign_in, params: test_user_credentials
 
-            @controller = Api::ItemsController.new
+            @controller = Api::ItemController.new
             request.headers['Authorization'] = "bearer #{JSON.parse(response.body)['token']}"
 
             post :sync, params: { api: '20190520', content_type: 'Note' }
@@ -82,7 +82,7 @@ RSpec.describe Api::ItemsController, type: :controller do
             @controller = Api::AuthController.new
             post :sign_in, params: test_user_credentials
 
-            @controller = Api::ItemsController.new
+            @controller = Api::ItemController.new
             request.headers['Authorization'] = "bearer #{JSON.parse(response.body)['token']}"
 
             # Serializing the items into an array of hashes
@@ -119,7 +119,7 @@ RSpec.describe Api::ItemsController, type: :controller do
             @controller = Api::AuthController.new
             post :sign_in, params: test_user_credentials
 
-            @controller = Api::ItemsController.new
+            @controller = Api::ItemController.new
             request.headers['Authorization'] = "bearer #{JSON.parse(response.body)['token']}"
 
             # Serializing the items into an array of hashes
@@ -162,7 +162,7 @@ RSpec.describe Api::ItemsController, type: :controller do
             @controller = Api::AuthController.new
             post :sign_in, params: test_user_credentials
 
-            @controller = Api::ItemsController.new
+            @controller = Api::ItemController.new
             request.headers['Authorization'] = "bearer #{JSON.parse(response.body)['token']}"
 
             # Serializing the items into an array of hashes
@@ -220,7 +220,7 @@ RSpec.describe Api::ItemsController, type: :controller do
           @controller = Api::AuthController.new
           post :sign_in, params: test_user_credentials
 
-          @controller = Api::ItemsController.new
+          @controller = Api::ItemController.new
           request.headers['Authorization'] = "bearer #{JSON.parse(response.body)['token']}"
           post :sync, params: { sync_token: '', cursor_token: '', limit: 5, items: [test_items] }
 
@@ -262,7 +262,7 @@ RSpec.describe Api::ItemsController, type: :controller do
         @controller = Api::AuthController.new
         post :sign_in, params: test_user_credentials
 
-        @controller = Api::ItemsController.new
+        @controller = Api::ItemController.new
         request.headers['Authorization'] = "bearer #{JSON.parse(response.body)['token']}"
 
         item = test_items.where(content_type: 'SF|Extension').first
@@ -298,7 +298,7 @@ RSpec.describe Api::ItemsController, type: :controller do
         @controller = Api::AuthController.new
         post :sign_in, params: test_user_credentials
 
-        @controller = Api::ItemsController.new
+        @controller = Api::ItemController.new
         request.headers['Authorization'] = "bearer #{JSON.parse(response.body)['token']}"
 
         new_item = { content: 'Test', content_type: 'Note' }
@@ -343,7 +343,7 @@ RSpec.describe Api::ItemsController, type: :controller do
         @controller = Api::AuthController.new
         post :sign_in, params: test_user_credentials
 
-        @controller = Api::ItemsController.new
+        @controller = Api::ItemController.new
         request.headers['Authorization'] = "bearer #{JSON.parse(response.body)['token']}"
 
         item = test_items.first

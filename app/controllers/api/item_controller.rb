@@ -1,4 +1,4 @@
-class Api::ItemsController < Api::ApiController
+class Api::ItemController < Api::ApiController
   def sync_manager
     unless @sync_manager
       version = params[:api]

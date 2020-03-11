@@ -4,6 +4,7 @@ Bundler.require(*Rails.groups)
 
 module StandardNotes
   class Application < Rails::Application
+    config.api_only = true
     config.load_defaults 5.1
     config.autoload_once_paths += Dir["#{config.root}/lib/**/*"]
     config.active_record.primary_key = :uuid
@@ -91,5 +92,7 @@ module StandardNotes
       :enable_starttls_auto => true # detects and uses STARTTLS
     }
 
+    config.x.auth.max_lockout_interval = 3600 # 1 hour
+    config.x.auth.max_failed_attempts = 6 # Per hour
   end
 end

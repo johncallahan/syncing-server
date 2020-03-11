@@ -1,8 +1,11 @@
 class Api::ApiController < ApplicationController
+  include Concerns::Jwt
+
   respond_to :json
 
   attr_accessor :current_user
   attr_accessor :user_manager
+  attr_accessor :current_session
 
   before_action :authenticate_user
   before_action :set_raven_context
@@ -26,14 +29,23 @@ class Api::ApiController < ApplicationController
       return
     end
 
-    claims = begin
-               SyncEngine::JwtHelper.decode(token)
-             rescue
-               nil
-             end
-    user = User.find_by_uuid claims['user_uuid'] unless claims.nil?
+    claims = jwt_decode(token)
+    user = User.find_by_uuid claims[:user_uuid] unless claims.nil?
 
     if user.nil?
+      render_invalid_auth
+      return
+    end
+
+    session = Session.find_by_uuid claims[:session_uuid] unless claims.nil?
+
+    if session.nil?
+      render_invalid_auth
+      return
+    end
+
+    # Session should belong to the authenticated user
+    if user.uuid != session.user_uuid
       render_invalid_auth
       return
     end
@@ -50,6 +62,7 @@ class Api::ApiController < ApplicationController
     end
 
     self.current_user = user
+    self.current_session = session
   end
 
   def set_raven_context

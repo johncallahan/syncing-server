@@ -7,32 +7,32 @@ module SyncEngine
     def sign_in(email, password)
       user = @user_class.find_by_email(email)
       if user && test_password(password, user.encrypted_password)
-        { user: user, token: jwt(user) }
-      else
-        { error: { message: 'Invalid email or password.', status: 401 } }
+        return { user: user }
       end
+
+      { error: { message: 'Invalid email or password.', status: 401 } }
     end
 
     def register(email, password, params)
       user = @user_class.find_by_email(email)
       if user
-        { error: { message: 'This email is already registered.', status: 401 } }
-      else
-        user = @user_class.new(email: email, encrypted_password: hash_password(password))
-        user.update!(registration_params(params))
-        { user: user, token: jwt(user) }
+        return { error: { message: 'This email is already registered.', status: 401 } }
       end
+
+      user = @user_class.new(email: email, encrypted_password: hash_password(password))
+      user.update!(registration_params(params))
+      { user: user }
     end
 
     def change_pw(user, password, params)
       user.encrypted_password = hash_password(password)
       user.update!(registration_params(params))
-      { user: user, token: jwt(user) }
+      { user: user }
     end
 
     def update(user, params)
       user.update!(registration_params(params))
-      { user: user, token: jwt(user) }
+      { user: user }
     end
 
     def auth_params(email)
@@ -78,10 +78,6 @@ module SyncEngine
       bcrypt = BCrypt::Password.new(hash)
       password = BCrypt::Engine.hash_secret(password, bcrypt.salt)
       ActiveSupport::SecurityUtils.secure_compare(password, hash)
-    end
-
-    def jwt(user)
-      JwtHelper.encode(user_uuid: user.uuid, pw_hash: Digest::SHA256.hexdigest(user.encrypted_password))
     end
 
     def registration_params(params)

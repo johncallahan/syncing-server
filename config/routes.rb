@@ -13,11 +13,17 @@ Rails.application.routes.draw do
   post "auth/update" => "api/auth#update"
   post "auth/change_pw" => "api/auth#change_pw"
 
-  post "items/sync" => "api/items#sync"
-  post "items/backup" => "api/items#backup"
+  post "items/sync" => "api/item#sync"
+  post "items/backup" => "api/item#backup"
 
-  delete "items" => "api/items#destroy"
-  resources "items", :controller => "api/items"
+  delete "items" => "api/item#destroy"
+  resources "items", :controller => "api/item"
+
+  # deletes a single session
+  delete "session" => "api/session#destroy"
+
+  # deletes all sessions except the current one
+  delete "sessions" => "api/session#destroy_all"
 
   # legacy support for clients which hardcoded the "api" path to the base url (iOS)
   namespace :api, defaults: {format: :json} do
@@ -25,7 +31,7 @@ Rails.application.routes.draw do
     post "auth/sign_in" => "auth#sign_in"
     post "auth" => "auth#register"
     post "auth/change_pw" => "auth#change_pw"
-    post "items/sync" => "items#sync"
+    post "items/sync" => "item#sync"
   end
 
   root "application#home"

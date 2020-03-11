@@ -72,8 +72,6 @@ class Api::AuthController < Api::ApiController
     user.save
   end
 
-  MAX_LOCKOUT = 3600 # 1 Hour
-  MAX_ATTEMPTS = 6 # Per hour
   def handle_failed_auth_attempt
     # current_user is only available to jwt requests (change_password)
     user = current_user || User.find_by_email(params[:email])
@@ -81,9 +79,9 @@ class Api::AuthController < Api::ApiController
 
     user.num_failed_attempts = 0 unless user.num_failed_attempts
     user.num_failed_attempts += 1
-    if user.num_failed_attempts >= MAX_ATTEMPTS
+    if user.num_failed_attempts >= Rails.configuration.x.auth.max_failed_attempts
       user.num_failed_attempts = 0
-      user.locked_until = DateTime.now + MAX_LOCKOUT.seconds
+      user.locked_until = DateTime.now + Rails.configuration.x.auth.max_lockout_interval.seconds
     end
 
     user.save
@@ -105,7 +103,7 @@ class Api::AuthController < Api::ApiController
       render json: result, status: 401
     else
       handle_successful_auth_attempt
-      render json: result
+      handle_new_session result[:user]
     end
   end
 
@@ -132,7 +130,7 @@ class Api::AuthController < Api::ApiController
       if ENV['AWS_REGION']
         RegistrationJob.perform_later(user.email, user.created_at.to_s)
       end
-      render json: result
+      handle_new_session user
     end
   end
 
@@ -181,7 +179,7 @@ class Api::AuthController < Api::ApiController
     if result[:error]
       render json: result, status: 401
     else
-      render json: result
+      update_jwt_token
     end
   end
 
@@ -191,7 +189,7 @@ class Api::AuthController < Api::ApiController
     if result[:error]
       render json: result, status: 401
     else
-      render json: result
+      update_jwt_token
     end
   end
 
@@ -216,5 +214,37 @@ class Api::AuthController < Api::ApiController
       pw_nonce: Digest::SHA2.hexdigest(email + Rails.application.secrets.secret_key_base),
       version: '003',
     }
+  end
+
+  def handle_new_session(user)
+    user_session = user.sessions.create(user_agent: request_user_agent, ip_address: request_ip_address)
+
+    unless user_session.valid?
+      return render json: {
+        error: {
+          message: 'Failed to start a new session. Please try again later.',
+        },
+      }, status: 401
+    end
+
+    @current_session = user_session
+
+    payload = {
+      session_uuid: @current_session.uuid,
+      user_uuid: user.uuid,
+      pw_hash: Digest::SHA256.hexdigest(user.encrypted_password),
+    }
+
+    render json: { user: user, token: jwt_encode(payload) }
+  end
+
+  def update_jwt_token
+    payload = {
+      session_uuid: @current_session.uuid,
+      user_uuid: current_user.uuid,
+      pw_hash: Digest::SHA256.hexdigest(current_user.encrypted_password),
+    }
+
+    render json: { user: current_user, token: jwt_encode(payload) }
   end
 end
