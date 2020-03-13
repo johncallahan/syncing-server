@@ -107,6 +107,11 @@ class Api::AuthController < Api::ApiController
     end
   end
 
+  def sign_out
+    @current_session&.destroy
+    render json: {}, status: :no_content
+  end
+
   def register
     if !params[:email] || !params[:password]
       return render json: {

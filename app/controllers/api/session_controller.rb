@@ -1,6 +1,6 @@
 class Api::SessionController < Api::ApiController
   def destroy
-    current_user.sessions.where(uuid: params[:uuid]).destroy_all
+    current_user.sessions.where(uuid: params[:uuid]).destroy
     render json: {}, status: :no_content
   end
 

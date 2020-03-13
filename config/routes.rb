@@ -9,6 +9,7 @@ Rails.application.routes.draw do
   # forward non-namespaced routes to api namespace
   get 'auth/params' => "api/auth#auth_params"
   post "auth/sign_in" => "api/auth#sign_in"
+  post "auth/sign_out" => "api/auth#sign_out"
   post "auth" => "api/auth#register"
   post "auth/update" => "api/auth#update"
   post "auth/change_pw" => "api/auth#change_pw"
