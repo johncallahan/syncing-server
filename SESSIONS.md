@@ -19,6 +19,8 @@
 * A token can be stolen or exposed, meaning that an unauthorized user can access privileged information
 * Tokens can only be revoked by changing the `secret_key_base` on the server. Doing this will revoke ***ALL*** issued tokens
 
+---
+
 ### **Proposed**
 
 1. We'll issue a `token` that represents the initiated session by the user. We could use another HTTP Header different than the `Authorization` header. This way, we can determine if the client is using the old authentication scheme or not.
@@ -77,7 +79,6 @@ Sessions should expire after a period of inactivity. This is for best security p
 
   > - When the server receives a JWT, it can validate that it is legitimate and trust that the user is whoever the token says they are.
   > - The server can validate this token locally without making any network requests, talking to a database, etc. This can potentially make session management faster because instead of needing to load the user from a database (or cache) on every request, you just need to run a small bit of local code. This is probably the single biggest reason people like using JWTs: they are stateless.
----
 
 - **Opaque Tokens**: These are random string which act as pointers to information that is held only by the system that issues them. Requires a database/cache lookup each time they are used. Also, a single token can easily revoked on demand.
 
@@ -85,11 +86,22 @@ Sessions should expire after a period of inactivity. This is for best security p
 
 Any new changes to the authentication scheme will have to be adapted to be used on the client side and must co-exist with old client versions.
 
+## JWT derivations
+
+Currently, our JWTs contain 2 private claims in it's payload: `user_uuid` and `pw_hash`. On older versions, only the `user_uuid` claim was present. In theory, users could be using 2 valid JWT to authenticate.
+
 ## Migration from JWT
 
-How are we going to migrate from JWT?
+### Users with account version `<= 003`:
 
-  The following proposals were formulated:
-  - If a valid JWT is provided, we'll create a new session for it. The JWT will be checked to see if there are no other sessions linked to the same. Finally, we'll return the new `token` that we'll be used to authenticate all following requests.
+#### Already authenticated users
+- The JWT will be added to a black list, along with all other derivations
+- Account version will be upgraded to `004`
+- A new `session` will be started. As a result, a token representing this session will be generated and returned instead of the JWT
+- Devices using JWT to authenticate will receive the following message: "*Your session with the server has been upgraded to the latest version. You will need to re-enter your account password on your other devices to continue syncing.*"
+- Syncing will continue after the user re-enter their credentials
 
-  - This will allow both old and new versions of the client to co-exist.
+#### New sign in requests
+- If credentials are valid, account version will be upgraded to `004`
+- All the JWTs derivations will be added to a black list
+- A new `session` will be started. As a result, a token representing this session will be generated and returned in the response
