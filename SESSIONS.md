@@ -1,86 +1,180 @@
-# Sessions specification
+# Session management
 
-## Server-side implications
+## Introduction
 
-- A new API version will be created: `20200115`
-- Sessions should include the API version they were created with. This way we can deny sessions for a given API version if we detect a vulnerability with that version in the future
-- Sessions are created **only** on Sign In and/or Registration
-- For API version `20200115`:
-  - If a JWT is provided whose account version is `<= 003`, then the request should *succeed*
-- For API version `20190520` and `20200115`:
-  - If a JWT is provided whose account version is `>= 004`, then the request should *fail*
+The following document outlines the specifications for the sessions management of the Standard Notes syncing server system.
 
-## Client-side implications
+## Overview
 
-- [Clients send the API version](https://github.com/standardnotes/snjs/blob/64e4e65c7660b9758e7b59547223cd4deb808c56/lib/services/api/api_service.js#L14) whenever they make a request
-- The API version for the `004` client will be `20200115`
-- The `004` client will implement the Sessions feature according to the documentation
+The proposed sessions management will be part of the `004` release, which includes the new API version `20200115` on the server side.
+
+Users with an account version of `003` or greater will be able to use this API version. But only those who upgrade their account version to `004` will be able to use this new session management feature.
+
+The following message will be shown to them once the account upgrade succeeds: 
+
+`Your session with the server has been upgraded to the latest version. You will need to re-enter your account password on your other devices to continue syncing.`
 
 ---
 
-## Schema
+The [SNJS library](https://github.com/standardnotes/snjs/blob/64e4e65c7660b9758e7b59547223cd4deb808c56/lib/services/api/api_service.js#L14) will be updated to use the new API version.
 
-The session store will consist of the following schema:
+## Models
 
-| Field      | Type         | Null | Key | Default | Extra |
-|------------|--------------|------|-----|---------|-------|
-| uuid       | varchar(36)  | NO   | PRI | NULL    |       |
-| version    | varchar(50)  | NO   |     | NULL    |       |
-| user_uuid  | varchar(255) | No   | MUL | NULL    |       |
-| user_agent | text         | YES  |     | NULL    |       |
-| created_at | datetime     | NO   |     | NULL    |       |
-| updated_at | datetime     | NO   | MUL | NULL    |       |
+### Session
 
-A cached session store is not necessarily required, but one can be used in the future. For now, this will just be a table within our database.
+| Field          | Type      | Description                                       |
+|----------------|-----------|---------------------------------------------------|
+| uuid           | string    | Unique identifier of the session                  |
+| user_uuid      | string    | Unique identifier of the user                     |
+| user_agent     | string    | The user agent used to create the session         |
+| api_version    | string    | The server API version used to create the session |
+| created_at     | datetime  | Date and time of creation of the session          |
+| updated_at     | datetime  | Last updated date and time of the session         |
 
----
-## Revokation
+- Each `session` includes the API version they were created with. This way we can deny sessions for a given API version if we detect a vulnerability with that version in the future.
+- Sessions are created in the following cases:
+  - When a user signs in
+  - When a user registers a new account
 
-Sessions should be revoked when needed. Additional endpoints will be exposed to perform such actions:
-
-| Method    | URL            | Params       | Description                                       |
-|--------   |----------------|--------------|---------------------------------------------------|
-|`POST`     | /auth/sign_out | *None*       | Terminates the current session.                   |
-|`DELETE`   | /session       | **uuid**     | Revokes or deletes the specified session by UUID. |
-|`DELETE`   | /sessions      | *None*       | Revokes all sessions, except the current one.     |
+#### Valid values for `api_version`:
+- _20200115_
 
 ---
 
-## Expiration
+### Tokens
 
-Sessions should expire after a period of inactivity. This is for best security practices.
+| Field          | Type      | Description                                       |
+|----------------|-----------|---------------------------------------------------|
+| uuid           | string    | Unique identifier of the token                    |
+| session_uuid   | string    | Unique identifier of the session                  |
+| token          | string    | The token representation as a string              |
+| type           | string    | The token type                                    |
+
+- A single `user` can have multiple `sessions`
+- A `session` should only have a pair of `tokens`: a token of type `access` and a token of type `refresh`
+- `access` and `refresh` tokens are prefixed with `A_` and `R_`, repectively
+
+### Authenticated requests
+
+The `Authorization` request header field is used by clients to make authenticated request. `Bearer` is the only authentication scheme allowed.
+
+The client must send the `access` token generated by the session, in the `Authorization` header. For example:
+
+```
+GET /sessions HTTP/1.1
+Host: sync.standardnotes.org
+Authorization: Bearer <access token>
+```
+
+---
+
+Below is a list of endpoints that will be available to manage sessions:
+
+| Method    | URL                      | Params              | Description                                            | Successful response code |
+|-----------|--------------------------|---------------------|--------------------------------------------------------|--------------------------|
+|`POST`     | /auth/sign_out           | *None*              | Terminates the current session                         | `204`                    |
+|`DELETE`   | /session                 | **uuid**            | Terminates the specified session by UUID               | `204`                    |
+|`DELETE`   | /sessions                | *None*              | Terminates all sessions, except the current one        | `204`                    |
+|`GET`      | /sessions                | *None*              | Lists all sessions active sessions                     | `200`                    |
+|`POST`     | /session/token/refresh   | **refresh_token**   | Obtains new pair of `access_token` and `refresh_token` | `200`                    |
+
+A successful request to `GET /sessions` returns the following JSON response:
+
+```json
+{
+  sessions: [
+    {
+      uuid: "xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
+      user_agent: "<product> / <product-version> <comment>",
+      api_version: "xxxxyyzz",
+      current: "<boolean>",
+      created_at: "2020-01-01T00:00:00.000Z"
+    }
+    ...
+  ]
+}
+```
+
+A successful request to `POST /session/token/refresh` returns the following JSON response:
+
+```json
+{
+  access_token: {
+    value: "A_xxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
+    expiration: ""
+  },
+  refresh_token: {
+    value: "R_xxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
+    expiration: ""
+  }
+}
+```
+
+---
+
+When an existing `access` token is provided but it is expired, the following JSON response is returned:
+
+HTTP Status Code: `401 Unauthorized`
+
+```json
+{
+  error: {
+    tag: "expired-access-token",
+    message: "The provided access token has expired."
+  }
+}
+```
+
+### Expiration
+
+#### Sessions
+
+Sessions should be terminated after a period of inactivity. This is for best security practices.
 
 `Long-lived sessions` are a good choice for our use case, because it can build a better user experience than expiring sessions for a short idle-timeout.
 
+- A `session` that remains inactive for `1 year` will be terminated, along with all `tokens`
+
+#### Tokens 
+
+| Name      | Type        | Expiration    |
+|-----------|-------------|---------------|
+| `access`  | Short-lived | `60 days`     |
+| `refresh` | Long-lived  | `1 year`      |
+
+- A `refresh` token is of single-use, while an `access` token can be used as long as it is not expired
+
+### Security concerns
+
+The following is a list of several threats and their corresponding mitigations for the proposed sessions system:
+
+#### Token disclosure
+*A token may be disclosed to unauthorized users*
+
+Mitigation(s):
+  - Clients must store tokens safely
+  - Clients must use HTTPS when making request with the tokens
+
 ---
 
-## Token types
+#### Token theft
+*An attacker may steal a token from the user's device and/or browser*
 
-- **JWT**: The token is used to represent "claims", that are transferred between two parties. The claims in a JWT are encoded as a JSON object.
-  A JWT contains "claims", which can be anything from [Registered Claims](https://tools.ietf.org/html/rfc7519#section-4.1), [Public Claims](https://tools.ietf.org/html/rfc7519#section-4.2), and [Private Claims](https://tools.ietf.org/html/rfc7519#section-4.3).
+Mitigation(s):
+  - Tokens may be stolen in some way. Users have the ability to revoke any stolen tokens if necessary
 
-  Our current implementation of JWT uses 2 private claims: `user_uuid` and `pw_hash`.
+## Terminology
 
-  The JSON object looks like the following:
+- **JWT**: A **J***SON* **W***eb* **T***oken* is a compact, URL-safe means of representing
+   claims to be transferred between two parties.
+- **Access token**: Used to access protected resources.
+- **Refresh token**: Used to obtain new access tokens.
+- **API version**: The version of the API in use.
+- **Account version**: The version of the SF specification used when creating this user's account. This value is updated when a user changes their password or updates their security version.
 
-  ```
-  {
-    "user_uuid": "<the user's uuid>",
-    "pw_hash": "<a SHA256 hash of the user's encrypted password>
-  }
-  ```
+### References
 
-  Then, this JSON object is cryptographically signed with the server's `secret_key_base` and a token is obtained:
-
-  `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9`
-
-  In short, JWTs are good for `authentication` because:
-
-  > - When the server receives a JWT, it can validate that it is legitimate and trust that the user is whoever the token says they are.
-  > - The server can validate this token locally without making any network requests, talking to a database, etc. This can potentially make session management faster because instead of needing to load the user from a database (or cache) on every request, you just need to run a small bit of local code. This is probably the single biggest reason people like using JWTs: they are stateless.
-
-  *This is the token type that is used for account version `<= 003`*
-
-- **Opaque Tokens**: These are random string which act as pointers to information that is held only by the system that issues them. Requires a database/cache lookup each time they are used. Also, a single token can easily revoked on demand.
-
-  *This is the token type that is used for account version `>= 004`*
+- [The OAuth 2.0 Authorization Framework](https://tools.ietf.org/html/rfc6749)
+- [OAuth 2.0 Threat Model and Security Considerations](https://tools.ietf.org/html/rfc6819)
+- [JSON Web Token (JWT)](https://tools.ietf.org/html/rfc7519)
+- [Safely Storing Credentials](https://api.slack.com/docs/oauth-safety)
