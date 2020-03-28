@@ -41,7 +41,7 @@ The [SNJS library](https://github.com/standardnotes/snjs/blob/64e4e65c7660b9758e
 
 ---
 
-### Tokens
+### Session tokens
 
 | Field          | Type      | Description                                       |
 |----------------|-----------|---------------------------------------------------|
@@ -82,48 +82,90 @@ A successful request to `GET /sessions` returns the following JSON response:
 
 ```json
 {
-  sessions: [
+  "sessions": [
     {
-      uuid: "xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
-      user_agent: "<product> / <product-version> <comment>",
-      api_version: "xxxxyyzz",
-      current: "<boolean>",
-      created_at: "2020-01-01T00:00:00.000Z"
+      "uuid": "xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
+      "user_agent": "<product> / <product-version> <comment>",
+      "api_version": "xxxxyyzz",
+      "current": "<boolean>",
+      "created_at": "2020-01-01T00:00:00.000Z"
     }
     ...
   ]
 }
 ```
 
-A successful request to `POST /session/token/refresh` returns the following JSON response:
+#### Obtaining tokens
 
-```json
-{
-  access_token: {
-    value: "A_xxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
-    expiration: ""
-  },
-  refresh_token: {
-    value: "R_xxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
-    expiration: ""
-  }
-}
-```
+Tokens can be obtained via the following methods:
 
----
+1. When a user signs in
+1. When a user registers an account
 
-When an existing `access` token is provided but it is expired, the following JSON response is returned:
+#### Refreshing tokens
+
+When an expired `access_token` is provided in the `Authorization` HTTP header, the following JSON response is returned:
 
 HTTP Status Code: `401 Unauthorized`
 
 ```json
 {
-  error: {
-    tag: "expired-access-token",
-    message: "The provided access token has expired."
+  "error": {
+    "tag": "expired-access-token",
+    "message": "The provided access token has expired."
   }
 }
 ```
+
+To continue accessing resources, the `access_token` must be refreshed. That is, the current `access_token` is replaced with a new one with an extended expiration date.
+
+To refresh an `access_token`, a valid `refresh_token` is needed:
+    - It should belong to the session of the `access_token`
+    - It should not be expired
+
+Since the `refresh_token` is of single-use, a new `refresh_token` is obtained when the `access_token` is refreshed.
+
+Refreshing tokens is a process that is transparent to the user, meaning that the client will perform the requests to keep valid tokens without user intervention.
+
+Here's how to refresh tokens:
+
+1. Send a `POST` request to `/session/token/refresh`. The body should contain a JSON paylaod with the `refresh_token`:
+    ```
+    POST /session/token/refresh HTTP/1.1
+    Host: sync.standardnotes.org
+    Authorization: Bearer <access token>
+
+    { 
+      "refresh_token": "R_xxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx" 
+    }
+    ```
+
+1. The `refresh_token` is validated on the server. Depending of the circumstances, there should be two outcomes:
+    1. The provided `refresh_token` is valid. If so, a new pair of tokens is generated and the following JSON response is returned:
+        ```json
+        {
+          "access_token": {
+            "value": "A_xxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
+            "expiration": "2020-03-01T00:00:00.000Z"
+          },
+          "refresh_token": {
+            "value": "R_xxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx",
+            "expiration": "2021-01-01T00:00:00.000Z"
+          }
+        }
+        ```
+    1. The provided `refresh_token` is invalid. If so, the following JSON response is returned:
+
+        HTTP Status Code: `401 Unauthorized`
+        ```json
+        {
+          "error": {
+            "tag": "expired-refresh-token",
+            "message": "The provided refresh token has expired."
+          }
+        }
+        ```
+        User must start a new session by re-entering their credentials.
 
 ### Expiration
 
@@ -165,7 +207,7 @@ Mitigation(s):
 
 ## Terminology
 
-- **JWT**: A **J***SON* **W***eb* **T***oken* is a compact, URL-safe means of representing
+- **JWT**: A JSON Web Token is a compact, URL-safe means of representing
    claims to be transferred between two parties.
 - **Access token**: Used to access protected resources.
 - **Refresh token**: Used to obtain new access tokens.
