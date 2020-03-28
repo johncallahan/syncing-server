@@ -6,7 +6,7 @@ The following document outlines the specifications for the sessions management o
 
 ## Overview
 
-The proposed sessions management will be part of the `004` release, which includes the new API version `20200115` on the server side.
+The proposed sessions management system will be part of the `004` release, which includes the new API version `20200115` on the server side.
 
 Users with an account version of `003` or greater will be able to use this API version. But only those who upgrade their account version to `004` will be able to use this new session management feature.
 
@@ -97,7 +97,7 @@ A successful request to `GET /sessions` returns the following JSON response:
 
 #### Obtaining tokens
 
-Tokens can be obtained via the following methods:
+Tokens can be obtained every time the user performs the following actions:
 
 1. When a user signs in
 1. When a user registers an account
@@ -119,7 +119,7 @@ HTTP Status Code: `401 Unauthorized`
 
 To continue accessing resources, the `access_token` must be refreshed. That is, the current `access_token` is replaced with a new one with an extended expiration date.
 
-To refresh an `access_token`, a valid `refresh_token` is needed:
+To refresh an `access_token`, a valid `refresh_token` is needed. This `refresh_token` must meet the following requirements:
     - It should belong to the session of the `access_token`
     - It should not be expired
 
